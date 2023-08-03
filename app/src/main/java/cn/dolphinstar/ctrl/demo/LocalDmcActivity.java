@@ -119,7 +119,7 @@ public class LocalDmcActivity extends DemoActivityBase {
     private ContentInfoEx selectContentInfo;
 
     //媒体类型 0 视频     1 音乐  2 图片
-    private  int mediaType = 2;
+    private  int mediaType = 0;
 
     private  void showFile(){
 
