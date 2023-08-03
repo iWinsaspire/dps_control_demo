@@ -64,7 +64,13 @@
                 android:enabled="false"
                 android:text="投屏幕示例" />
         </LinearLayout>
-
+        <Button
+            android:id="@+id/btn_local_file"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:enabled="false"
+            android:text="本地文件示例" />
 
     </LinearLayout>
 

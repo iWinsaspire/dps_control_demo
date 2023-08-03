@@ -11,32 +11,19 @@ import android.text.TextUtils;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.ListView;
-
 import com.huawei.hms.hmsscankit.ScanUtil;
 import com.huawei.hms.ml.scan.HmsScan;
 import com.huawei.hms.ml.scan.HmsScanAnalyzerOptions;
-import com.mydlna.dlna.core.ContentDevice;
-import com.mydlna.dlna.core.DmcClientWraper;
-import com.mydlna.dlna.core.RenderDevice;
-import com.mydlna.dlna.service.DlnaDevice;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import cn.dolphinstar.ctrl.demo.utility.DemoActivityBase;
-import cn.dolphinstar.ctrl.demo.utility.DemoConst;
-import  cn.dolphinstar.ctrl.demo.BuildConfig;
-import cn.dolphinstar.ctrl.demo.utility.DeviceListAdapter;
-import cn.dolphinstar.lib.IDps.IDpsOpenDmcBrowser;
 import cn.dolphinstar.lib.POCO.ReturnMsg;
 import cn.dolphinstar.lib.POCO.StartUpCfg;
 import cn.dolphinstar.lib.ctrlCore.MYOUController;
 import cn.dolphinstar.lib.wozkit.WozLogger;
-import io.reactivex.Observable;
 import io.reactivex.android.schedulers.AndroidSchedulers;
-import io.reactivex.disposables.Disposable;
 
 public class MainActivity extends DemoActivityBase {
 
@@ -52,6 +39,8 @@ public class MainActivity extends DemoActivityBase {
     private Button btnLink;
     private Button btnMirror;
     private Button btnScanQr;
+    private  Button btnLocalFile;
+    StartUpCfg cfg = null;
 
     @SuppressLint("CheckResult")
     @Override
@@ -59,7 +48,7 @@ public class MainActivity extends DemoActivityBase {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        //UI 按钮处理  727588
+        //UI 按钮处理
         etScreenCode =  findViewById(R.id.screen_code);
         //etScreenCode.setText("269782");
         btnScreenCode = findViewById(R.id.btn_scode);
@@ -91,6 +80,13 @@ public class MainActivity extends DemoActivityBase {
             startActivity(intent);
         });
 
+        //本地文件投屏实例
+        btnLocalFile = findViewById(R.id.btn_local_file);
+        btnLocalFile.setOnClickListener(v->{
+            Intent intent = new Intent(MainActivity.this,LocalDmcActivity.class);
+            intent.putExtra("myDmcName",cfg.MediaServerName);
+            startActivity(intent);
+        });
         //扫码认证
         btnScanQr=findViewById(R.id.btn_scan_qr);
         btnScanQr.setOnClickListener(v->{
@@ -110,7 +106,7 @@ public class MainActivity extends DemoActivityBase {
     //SDK启动
     @SuppressLint("CheckResult")
     private void dpsSdkStartUp() {
-        StartUpCfg cfg = new StartUpCfg();
+          cfg = new StartUpCfg();
         cfg.MediaServerName = "海豚星空DMS-" + (int) (Math.random() * 900 + 100);
         cfg.IsShowLogger = BuildConfig.DEBUG;
         cfg.AppSecret = "xxxxxxx"; //这里填入你的秘钥
@@ -128,16 +124,15 @@ public class MainActivity extends DemoActivityBase {
 
         MYOUController.of(MainActivity.this)
                 .useMirror()  //使用镜像模块
-
                 .StartService(cfg)   // 启动服务
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(
                         y -> {
                             toast("Dps SDK启动成功");
                             setTitle(cfg.MediaServerName);
-
                             btnLink.setEnabled(true);
                             btnMirror.setEnabled(true);
+                            btnLocalFile.setEnabled(true);
                         },
                         e -> toast(e.getLocalizedMessage()));
     }
@@ -148,6 +143,13 @@ public class MainActivity extends DemoActivityBase {
 
         List<String> lackedPermission = new ArrayList<>();
 
+        //程序可以读取设备外部存储空间
+        if (!(checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED)) {
+            lackedPermission.add(Manifest.permission.READ_EXTERNAL_STORAGE);
+        }
+        if (!(checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED)) {
+            lackedPermission.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
+        }
 
         //扫码
         if (!(checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)) {
