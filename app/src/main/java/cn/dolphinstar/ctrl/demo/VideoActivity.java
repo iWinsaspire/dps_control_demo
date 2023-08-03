@@ -25,6 +25,8 @@ import cn.dolphinstar.lib.ctrlCore.MYOUController;
 import io.reactivex.Observable;
 import io.reactivex.android.schedulers.AndroidSchedulers;
 
+import cn.dolphinstar.ctrl.demo.utility.DeviceListAdapter;
+
 public class VideoActivity extends DemoActivityBase {
 
 

@@ -2,12 +2,14 @@ package cn.dolphinstar.ctrl.demo;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.text.TextUtils;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Display;
@@ -15,21 +17,33 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.ListView;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.Spinner;
 import android.widget.Toast;
 
+import com.mydlna.dlna.core.ContentDevice;
+import com.mydlna.dlna.core.DmcClientWraper;
+import com.mydlna.dlna.core.RenderDevice;
+import com.mydlna.dlna.service.DlnaDevice;
+
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
+import cn.dolphinstar.ctrl.demo.utility.DemoConst;
+import cn.dolphinstar.ctrl.demo.utility.DeviceListAdapter;
 import cn.dolphinstar.lib.DpsMirrorConsts;
+import cn.dolphinstar.lib.IDps.IDpsOpenDmcBrowser;
 import cn.dolphinstar.lib.POCO.MirrorCfg;
 import cn.dolphinstar.lib.POCO.ReturnMsg;
 import cn.dolphinstar.lib.ctrlCore.MYOUController;
 import cn.dolphinstar.lib.wozkit.WozLogger;
+import io.reactivex.Observable;
+import io.reactivex.android.schedulers.AndroidSchedulers;
 
-public class TvActivity extends AppCompatActivity {
+public class MirrorUIActivity extends AppCompatActivity {
 
     private static final int REQUEST_ALERTWINDOW_PERMISSION_CODE = 103;
 
@@ -52,33 +66,138 @@ public class TvActivity extends AppCompatActivity {
     private String tempTranslation = "TCP";
     private Button btnOk;
 
-    private Button btnMirror;
 
     private MirrorCfg mirrorCfg;
 
-    String renderDeviceName;
+    private  RenderDevice device;
+
+    //设备列表
+    private ListView lvDevice;
+    private DeviceListAdapter lvAdapter;
+    private ArrayList<RenderDevice> renderDeviceList;
+
+    //监听设备状态
+    IDpsOpenDmcBrowser dpsOpenDmcBrowser = new IDpsOpenDmcBrowser() {
+        @Override
+        public void DMCServiceStatusNotify(int status) {
+        }
+
+        //状态
+        @Override
+        public void DlnaDeviceStatusNotify(DlnaDevice device) {
+            if (RenderDevice.isRenderDevice(device)) {
+                switch (device.stateNow) {
+                    case DemoConst.DEVICE_STATE_ONLINE:
+                        // 有新的接收端设备上线
+                        searchDevices();
+                        break;
+                    case DemoConst.DEVICE_STATE_OFFLINE:
+                        // 有接收端设备离线
+                        searchDevices();
+                        break;
+                    default:
+                        //unknown render device state
+                        break;
+                }
+            }
+        }
+
+        //DMS媒体文件变更通知 照成无需改动
+        @Override
+        public void DlnaFilesNotify(String udn, int videoCount, int audioCount, int imageCount, int fileCount) {
+            if (TextUtils.isEmpty(udn)) {
+                return;
+            }
+            final ContentDevice device = ContentDevice.sDevices.findDeviceByUdn(udn);
+            if (device != null) {
+                final int fAudioCount = audioCount;
+                final int fVideoCount = videoCount;
+                final int fImageCount = imageCount;
+                final int fFileCount = fileCount;
+
+                new Runnable() {
+                    public void run() {
+                        device.updateContent(DmcClientWraper.sClient, fAudioCount,
+                                fImageCount, fVideoCount, fFileCount);
+                    }
+                };
+            }
+        }
+
+    };
+
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_tv);
+        setContentView(R.layout.activity_mirrorui);
 
         DisplayMetrics metrics = new DisplayMetrics();
         Display display = getWindowManager().getDefaultDisplay();
         display.getRealMetrics(metrics);
         mirrorCfg = new MirrorCfg(metrics.widthPixels,metrics.heightPixels);
-        Intent intent  = getIntent();
-        renderDeviceName = intent.getStringExtra("renderDeviceName");
 
-        //mirrorCfg.setDisplayScale(0);
+
+        //设备列表
+        renderDeviceList = new ArrayList<>();
+        lvDevice = findViewById(R.id.lv_device_list);
+        lvDevice.requestLayout();
+        lvAdapter = new DeviceListAdapter(this, R.layout.device_list_item, renderDeviceList);
+        lvDevice.setAdapter(lvAdapter);
+        lvDevice.setOnItemClickListener((parent, view, position, id) -> {
+            //点击设备列表中的电视，投屏到该电视上
+            if (renderDeviceList != null && renderDeviceList.size() > position) {
+                 this.device = renderDeviceList.get(position);
+                 setTitle(this.device.nameString);
+                ReturnMsg connMsg =  MYOUController.of(MirrorUIActivity.this).getRenderDevice()
+                        .ConnectByNamString(device.nameString);
+
+                if(connMsg.isOk){
+                    //启动镜像先检测是否有窗口上的权限，有直接投，否则授权后投
+                    requestAlertWindowPermission();
+                }
+            }
+        });
 
         _initBitrateOpt();
-        _initMirrorBtn();
         _initOkBtn();
         _initResolutionOpt();
         _initTransmissionMode();
         _initVFPSOpt();
         _initOrientOpt();
+
+        //注意 MYOUController是个单实例，设置监听器将覆盖之前设置的。
+        MYOUController.of(MirrorUIActivity.this)
+                .SetDmcBrowserListener(dpsOpenDmcBrowser);
+    }
+
+
+    //搜索设备 获取当前发现在线的接收端设备列表
+    @SuppressLint("CheckResult")
+    private void searchDevices() {
+        ArrayList<RenderDevice> list = MYOUController.of(MirrorUIActivity.this)
+                .getRenderDevice().GetAllOnlineDevices();
+        if (list.size() > 0) {
+            WozLogger.e("搜索到设备数量->" + list.size());
+            Observable.fromArray(list)
+                    .observeOn(AndroidSchedulers.mainThread())
+                    .subscribe(item -> {
+                        renderDeviceList.clear();
+                        renderDeviceList.addAll(item);
+                        lvAdapter.notifyDataSetChanged();
+                        lvDevice.setVisibility(View.VISIBLE);
+                    });
+        } else {
+            //没啥用 主要切主线程 操作UI
+            Observable.timer(1, TimeUnit.MILLISECONDS)
+                    .observeOn(AndroidSchedulers.mainThread())
+                    .subscribe(i -> {
+                        renderDeviceList.clear();
+                        lvAdapter.notifyDataSetChanged();
+                        toast("获取设备数量: " + list.size());
+                    });
+        }
     }
 
     //分辨率选项的初始化
@@ -244,33 +363,6 @@ public class TvActivity extends AppCompatActivity {
     }
 
 
-    //开启镜像按钮
-    private int mirrorState = 0;
-    private  void _initMirrorBtn(){
-        btnMirror = findViewById(R.id.startMirror);
-
-        ReturnMsg connMsg =  MYOUController.of(TvActivity.this).getRenderDevice().ConnectByNamString(renderDeviceName);
-        if(!connMsg.isOk){
-            btnMirror.setEnabled(false);
-            WozLogger.e(connMsg.errMsg);
-        }
-
-        btnMirror.setOnClickListener(view ->{
-            if(mirrorState == 0) {
-                requestAlertWindowPermission();
-
-            }else{
-                mirrorState = 0 ;
-                MYOUController.of(TvActivity.this).getDpsMirror().Stop();
-                btnOk.setEnabled(true);
-                btnMirror.setText("开启镜像");
-                btnOk.setEnabled(false);
-                btnOk.setText("确定");
-            }
-        });
-    }
-
-
     @TargetApi(Build.VERSION_CODES.M)
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
@@ -279,27 +371,28 @@ public class TvActivity extends AppCompatActivity {
             if (!Settings.canDrawOverlays(this)) {
                 toast("未授权悬浮窗,无法开启镜像功能.");
             }else {
-                ReturnMsg msg =  MYOUController.of(TvActivity.this).getDpsMirror().Start(mirrorCfg);
+                ReturnMsg msg =  MYOUController.of(MirrorUIActivity.this).getDpsMirror().Start(mirrorCfg);
                 if(!msg.isOk){ toast(msg.errMsg);  }
             }
         }else
         if (requestCode == DpsMirrorConsts.RECORD_REQUEST_CODE && resultCode == RESULT_OK) {
-            MYOUController.of(TvActivity.this).getDpsMirror().onAfterActivityResult(requestCode,resultCode,data);
+            MYOUController.of(MirrorUIActivity.this).getDpsMirror().onAfterActivityResult(requestCode,resultCode,data);
             toast("确定镜像");
             //开始镜像 修改UI
             goMirrir2Activity();
         }else{
             toast("取消镜像");
         }
+        super.onActivityResult(resultCode,resultCode,data);
     }
 
     public void toast(String msg) {
-        Toast.makeText(TvActivity.this, msg, Toast.LENGTH_SHORT).show();
+        Toast.makeText(MirrorUIActivity.this, msg, Toast.LENGTH_SHORT).show();
         Log.i("Toast",msg);
     }
 
     private void goMirrir2Activity(){
-        Intent intent = new Intent(TvActivity.this,Mirror2Activity.class);
+        Intent intent = new Intent(MirrorUIActivity.this,Mirror2Activity.class);
         startActivity(intent);
 
     }
@@ -311,7 +404,8 @@ public class TvActivity extends AppCompatActivity {
                 intent.setData(Uri.parse("package:" + getPackageName()));
                 startActivityForResult(intent, REQUEST_ALERTWINDOW_PERMISSION_CODE);
             }else{
-                ReturnMsg msg =  MYOUController.of(TvActivity.this).getDpsMirror().Start(mirrorCfg);
+                //启动镜像
+                ReturnMsg msg =  MYOUController.of(MirrorUIActivity.this).getDpsMirror().Start(mirrorCfg);
                 if(!msg.isOk){ toast(msg.errMsg);  }
             }
         }

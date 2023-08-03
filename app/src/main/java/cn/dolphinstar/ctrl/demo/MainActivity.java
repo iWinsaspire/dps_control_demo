@@ -8,12 +8,10 @@ import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.text.TextUtils;
-import android.util.Log;
+import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.Toast;
-
-import androidx.appcompat.app.AppCompatActivity;
+import android.widget.ListView;
 
 import com.huawei.hms.hmsscankit.ScanUtil;
 import com.huawei.hms.ml.scan.HmsScan;
@@ -29,6 +27,8 @@ import java.util.concurrent.TimeUnit;
 
 import cn.dolphinstar.ctrl.demo.utility.DemoActivityBase;
 import cn.dolphinstar.ctrl.demo.utility.DemoConst;
+import  cn.dolphinstar.ctrl.demo.BuildConfig;
+import cn.dolphinstar.ctrl.demo.utility.DeviceListAdapter;
 import cn.dolphinstar.lib.IDps.IDpsOpenDmcBrowser;
 import cn.dolphinstar.lib.POCO.ReturnMsg;
 import cn.dolphinstar.lib.POCO.StartUpCfg;
@@ -43,15 +43,6 @@ public class MainActivity extends DemoActivityBase {
     private static final int REQUEST_PERMISSION_CODE = 100;
     private static int QR_SCAN_REQ_CODE = 9999;
 
-    private StartUpCfg cfg;
-
-
-    //刷新按钮
-    private Button btnGetDevices;
-
-
-    private Disposable deviceDisposable = null;
-
 
     //投屏码输入框
     private EditText etScreenCode;
@@ -62,65 +53,15 @@ public class MainActivity extends DemoActivityBase {
     private Button btnMirror;
     private Button btnScanQr;
 
-    //监听设备状态
-    IDpsOpenDmcBrowser dpsOpenDmcBrowser = new IDpsOpenDmcBrowser() {
-        @Override
-        public void DMCServiceStatusNotify(int status) {
-        }
-
-        //状态
-        @Override
-        public void DlnaDeviceStatusNotify(DlnaDevice device) {
-            if (RenderDevice.isRenderDevice(device)) {
-                switch (device.stateNow) {
-                    case DemoConst.DEVICE_STATE_ONLINE:
-                        // 有新的接收端设备上线
-                        searchDevices();
-                        break;
-                    case DemoConst.DEVICE_STATE_OFFLINE:
-                        // 有接收端设备离线
-                        searchDevices();
-                        break;
-                    default:
-                        //unknown render device state
-                        break;
-                }
-            }
-        }
-
-        //DMS媒体文件变更通知 照成无需改动
-        @Override
-        public void DlnaFilesNotify(String udn, int videoCount, int audioCount, int imageCount, int fileCount) {
-            if (TextUtils.isEmpty(udn)) {
-                return;
-            }
-            final ContentDevice device = ContentDevice.sDevices.findDeviceByUdn(udn);
-            if (device != null) {
-                final int fAudioCount = audioCount;
-                final int fVideoCount = videoCount;
-                final int fImageCount = imageCount;
-                final int fFileCount = fileCount;
-
-                new Runnable() {
-                    public void run() {
-                        device.updateContent(DmcClientWraper.sClient, fAudioCount,
-                                fImageCount, fVideoCount, fFileCount);
-                    }
-                };
-            }
-        }
-
-    };
-
+    @SuppressLint("CheckResult")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
         //UI 按钮处理  727588
-        btnGetDevices = findViewById(R.id.btn_get_device_list);
         etScreenCode =  findViewById(R.id.screen_code);
-        etScreenCode.setText("269782");
+        //etScreenCode.setText("269782");
         btnScreenCode = findViewById(R.id.btn_scode);
         btnScreenCode.setOnClickListener(v->{
             String text =  etScreenCode.getText().toString().trim();
@@ -129,7 +70,6 @@ public class MainActivity extends DemoActivityBase {
                         .observeOn(AndroidSchedulers.mainThread())
                         .subscribe(r->{
                             //输入投屏码认证成功后，主动搜索，可以快点发现
-                            searchDevices();
                         },err->{
                             //失败
                             WozLogger.e( err );
@@ -146,6 +86,10 @@ public class MainActivity extends DemoActivityBase {
         });
         //镜像投屏投屏示例
         btnMirror = findViewById(R.id.btn_mirror);
+        btnMirror.setOnClickListener(v->{
+            Intent intent = new Intent(MainActivity.this,MirrorUIActivity.class);
+            startActivity(intent);
+        });
 
         //扫码认证
         btnScanQr=findViewById(R.id.btn_scan_qr);
@@ -154,7 +98,6 @@ public class MainActivity extends DemoActivityBase {
                     .setHmsScanTypes(HmsScan.QRCODE_SCAN_TYPE).create());
         });
 
-        btnGetDevices.setOnClickListener(v -> searchDevices());
 
         //版本小于 m 直接启动海豚星空投屏服务 否则检测权限后启动
         if (Build.VERSION.SDK_INT >Build.VERSION_CODES.M) {
@@ -167,95 +110,37 @@ public class MainActivity extends DemoActivityBase {
     //SDK启动
     @SuppressLint("CheckResult")
     private void dpsSdkStartUp() {
-        cfg = new StartUpCfg();
+        StartUpCfg cfg = new StartUpCfg();
         cfg.MediaServerName = "海豚星空DMS-" + (int) (Math.random() * 900 + 100);
         cfg.IsShowLogger = BuildConfig.DEBUG;
-        cfg.AppSecret = "29f89b23775045a9";
+        cfg.AppSecret = "xxxxxxx"; //这里填入你的秘钥
+
+
+        //demo 特殊配置信息 ，非必要。按自己想要的方式给 AppId AppSecret赋值就好
+        if(!BuildConfig.dpsAppId.isEmpty()){
+            //虽然这里可以配置AppId，
+            //但app/src/main/assets/dpsAppInfo文件还是必须存在，可以不配置真的值。
+            cfg.AppId = BuildConfig.dpsAppId;
+        }
+        if(!BuildConfig.dpsAppSecret.isEmpty()){
+            cfg.AppSecret = BuildConfig.dpsAppSecret;
+        }
 
         MYOUController.of(MainActivity.this)
                 .useMirror()  //使用镜像模块
-                .SetDmcBrowserListener(dpsOpenDmcBrowser)
-                /*
-                .SetPushReady(renderStatus -> {
-                    // 状态为播放的时候 开始主动查询进度条
-                    if (renderStatus.state == 1) {
-                        //主动查询进度条
-                        if (deviceDisposable == null) {
-                            deviceDisposable = MYOUController.of(MainActivity.this).getDpsPlayer().Query().subscribe(s -> {
-                                String stateText = "";
-                                switch (s.state) {
-                                    case 0:
-                                        stateText = "停止";
-                                        break;
-                                    case 1:
-                                        stateText = "播放中...";
-                                        break;
-                                    case 2:
-                                        stateText = "暂停";
-                                        break;
-                                    default:
-                                        break;
-                                }
-                                WozLogger.w("当前电视状态:" + stateText + "( " + s.state + " )"
-                                        .concat("  总时长(秒)：" + s.duration)
-                                        .concat("  当前进度(秒):" + s.progress)
-                                        .concat("  当前音量:" + s.volume)
-                                );
 
-                                //结束 主动查询
-                                if (s.state == 0) {
-                                    if (deviceDisposable != null) {
-                                        deviceDisposable.dispose();
-                                        deviceDisposable = null;
-                                    }
-                                }
-                            });
-                        }
-                    }
-                })
-                */
-                // 启动服务
-                .StartService(cfg)
+                .StartService(cfg)   // 启动服务
+                .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(
                         y -> {
-                            //只是为了切主线程 操作UI
-                            Observable.timer(300, TimeUnit.MILLISECONDS)
-                                    .observeOn(AndroidSchedulers.mainThread())
-                                    .subscribe(l -> {
-                                        toast("Dps SDK启动成功");
-                                        setTitle(cfg.MediaServerName);
-                                        btnGetDevices.setEnabled(true);
-                                    });
+                            toast("Dps SDK启动成功");
+                            setTitle(cfg.MediaServerName);
+
+                            btnLink.setEnabled(true);
+                            btnMirror.setEnabled(true);
                         },
                         e -> toast(e.getLocalizedMessage()));
     }
-
-    //搜索设备 获取当前发现在线的接收端设备列表
-    @SuppressLint("CheckResult")
-    private void searchDevices() {
-        ArrayList<RenderDevice> list = MYOUController.of(MainActivity.this).getRenderDevice().GetAllOnlineDevices();
-        if (list.size() > 0) {
-            Observable.fromArray(list)
-                    //.subscribeOn(Schedulers.newThread())
-                    .observeOn(AndroidSchedulers.mainThread())
-                    .subscribe(item -> {
-
-                        btnLink.setEnabled(true);
-                        btnMirror.setEnabled(true);
-                    });
-        } else {
-            //没啥用 主要切主线程 操作UI
-            Observable.timer(1, TimeUnit.MILLISECONDS)
-                    .observeOn(AndroidSchedulers.mainThread())
-                    .subscribe(i -> {
-
-                        toast("获取设备数量: " + list.size());
-                        btnLink.setEnabled(false);
-                        btnMirror.setEnabled(false);
-                    });
-        }
-    }
-
 
     //region 动态权限申请
 
@@ -263,12 +148,10 @@ public class MainActivity extends DemoActivityBase {
 
         List<String> lackedPermission = new ArrayList<>();
 
-        if (!(checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED)) {
-            lackedPermission.add(Manifest.permission.READ_EXTERNAL_STORAGE);
-        }
 
-        if (!(checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED)) {
-            lackedPermission.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
+        //扫码
+        if (!(checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)) {
+            lackedPermission.add(Manifest.permission.CAMERA);
         }
 
         if (lackedPermission.size() == 0) {
@@ -305,10 +188,10 @@ public class MainActivity extends DemoActivityBase {
                 if (obj != null) {
                     content = obj.originalValue;
                     //二维码认证
-                    ReturnMsg rm = MYOUController.of(MainActivity.this).getDpsAuther().ScanQRCode(content);
+                    ReturnMsg rm = MYOUController.of(MainActivity.this)
+                            .getDpsAuther().ScanQRCode(content);
                     if(rm.isOk){
                         toast("认证成功");
-                        searchDevices();
                     }else{
                         toast(rm.errMsg);
                     }
@@ -324,9 +207,7 @@ public class MainActivity extends DemoActivityBase {
     protected void onDestroy() {
         //关闭服务
         MYOUController.of(MainActivity.this).Close();
-        if (deviceDisposable != null) {
-            deviceDisposable.dispose();
-        }
+
         super.onDestroy();
     }
 }

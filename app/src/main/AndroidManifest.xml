@@ -4,8 +4,11 @@
     package="cn.dolphinstar.ctrl.demo">
     <!-- 网络访问全系 必须权限 -->
     <uses-permission android:name="android.permission.INTERNET" /> <!-- 镜像需要的权限 -->
+    <!--允许访问摄像头-->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- 显示系统窗口 -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <uses-permission android:name="android.permission.TYPE_APPLICATION_OVERLAY" />
 
     <application
         android:allowBackup="true"
@@ -20,7 +23,7 @@
             android:name=".VideoActivity"
             android:exported="false" />
         <activity android:name=".Mirror2Activity" />
-        <activity android:name=".TvActivity" />
+        <activity android:name=".MirrorUIActivity" />
         <activity
             android:name=".MainActivity"
             android:theme="@style/Theme.AppCompat.Light.DarkActionBar">

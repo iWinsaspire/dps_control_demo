@@ -54,7 +54,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:enabled="false"
-                android:text="投链接" />
+                android:text="投链接示例" />
 
             <Button
                 android:id="@+id/btn_mirror"
@@ -62,23 +62,9 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:enabled="false"
-                android:text="镜像投" />
+                android:text="投屏幕示例" />
         </LinearLayout>
 
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:layout_constraintEnd_toEndOf="parent"
-            android:text="注意看 Logcat，结果输出在Logcat"></TextView>
-
-
-        <Button
-            android:id="@+id/btn_get_device_list"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:enabled="false"
-            android:text="@string/btn_get_device_list" />
 
     </LinearLayout>
 
