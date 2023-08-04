@@ -27,6 +27,7 @@
             android:exported="false" />
         <activity android:name=".Mirror2Activity" />
         <activity android:name=".MirrorUIActivity" />
+        <activity android:name=".LocalDmcActivity"/>
         <activity
             android:name=".MainActivity"
             android:theme="@style/Theme.AppCompat.Light.DarkActionBar">

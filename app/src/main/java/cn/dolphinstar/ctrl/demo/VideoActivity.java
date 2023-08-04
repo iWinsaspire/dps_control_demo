@@ -91,7 +91,8 @@ public class VideoActivity extends DemoActivityBase {
         @Override
         public void ready(RenderStatus renderStatus) {
             // 状态为播放的时候 开始主动查询进度条
-            if (renderStatus.state == 1 && deviceDisposable == null) {
+            if (renderStatus.state == 1) {
+                if(deviceDisposable == null){
                 //主动查询进度条
                 deviceDisposable = MYOUController.of(VideoActivity.this)
                         .getDpsPlayer().Query().subscribe(s -> {
@@ -117,7 +118,18 @@ public class VideoActivity extends DemoActivityBase {
                                     .concat("  当前音量:" + s.volume)
                             );
                         });
+                }
+            }else{
+                //被动接收->  renderStatus.state == 0 也是结束
+                WozLogger.e("renderStatus.state ->" + renderStatus.state );
+                if(renderStatus.state ==0 ){
+                    if(deviceDisposable!=null) {
+                        deviceDisposable.dispose();
+                        deviceDisposable = null;
+                    }
 
+                    //投放新的
+                }
             }
         }
     };

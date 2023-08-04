@@ -189,6 +189,7 @@ public class LocalDmcActivity extends DemoActivityBase {
         //注意 MYOUController是个单实例，设置监听器将覆盖之前设置的。
         MYOUController.of(LocalDmcActivity.this)
                 .SetDmcBrowserListener(dpsOpenDmcBrowser);
+
         searchContentDevice();
     }
 
