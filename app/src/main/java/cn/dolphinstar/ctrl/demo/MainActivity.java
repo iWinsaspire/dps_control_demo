@@ -22,6 +22,7 @@ import cn.dolphinstar.ctrl.demo.utility.DemoActivityBase;
 import cn.dolphinstar.lib.POCO.ReturnMsg;
 import cn.dolphinstar.lib.POCO.StartUpCfg;
 import cn.dolphinstar.lib.ctrlCore.MYOUController;
+import cn.dolphinstar.lib.wozkit.NetHelper;
 import cn.dolphinstar.lib.wozkit.WozLogger;
 import io.reactivex.android.schedulers.AndroidSchedulers;
 
@@ -106,35 +107,41 @@ public class MainActivity extends DemoActivityBase {
     //SDK启动
     @SuppressLint("CheckResult")
     private void dpsSdkStartUp() {
-          cfg = new StartUpCfg();
-        cfg.MediaServerName = "海豚星空DMS-" + (int) (Math.random() * 900 + 100);
-        cfg.IsShowLogger = BuildConfig.DEBUG;
-        cfg.AppSecret = "xxxxxxx"; //这里填入你的秘钥
+        NetHelper netHelper = new NetHelper(getApplicationContext());
+        int netType = netHelper.getConnectedType();
+        if (netType == -1) {
+            toast("未连接网络，投屏服务未启动!");
+        } else {
+            cfg = new StartUpCfg();
+            cfg.MediaServerName = "海豚星空DMS-" + (int) (Math.random() * 900 + 100);
+            cfg.IsShowLogger = BuildConfig.DEBUG;
+            cfg.AppSecret = "xxxxxxx"; //这里填入你的秘钥
 
 
-        //demo 特殊配置信息 ，非必要。按自己想要的方式给 AppId AppSecret赋值就好
-        if(!BuildConfig.dpsAppId.isEmpty()){
-            //虽然这里可以配置AppId，
-            //但app/src/main/assets/dpsAppInfo文件还是必须存在，可以不配置真的值。
-            cfg.AppId = BuildConfig.dpsAppId;
+            //demo 特殊配置信息 ，非必要。按自己想要的方式给 AppId AppSecret赋值就好
+            if (!BuildConfig.dpsAppId.isEmpty()) {
+                //虽然这里可以配置AppId，
+                //但app/src/main/assets/dpsAppInfo文件还是必须存在，可以不配置真的值。
+                cfg.AppId = BuildConfig.dpsAppId;
+            }
+            if (!BuildConfig.dpsAppSecret.isEmpty()) {
+                cfg.AppSecret = BuildConfig.dpsAppSecret;
+            }
+
+            MYOUController.of(MainActivity.this)
+                    .useMirror()  //使用镜像模块
+                    .StartService(cfg)   // 启动服务
+                    .observeOn(AndroidSchedulers.mainThread())
+                    .subscribe(
+                            y -> {
+                                toast("Dps SDK启动成功");
+                                setTitle(cfg.MediaServerName);
+                                btnLink.setEnabled(true);
+                                btnMirror.setEnabled(true);
+                                btnLocalFile.setEnabled(true);
+                            },
+                            e -> toast(e.getLocalizedMessage()));
         }
-        if(!BuildConfig.dpsAppSecret.isEmpty()){
-            cfg.AppSecret = BuildConfig.dpsAppSecret;
-        }
-
-        MYOUController.of(MainActivity.this)
-                .useMirror()  //使用镜像模块
-                .StartService(cfg)   // 启动服务
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(
-                        y -> {
-                            toast("Dps SDK启动成功");
-                            setTitle(cfg.MediaServerName);
-                            btnLink.setEnabled(true);
-                            btnMirror.setEnabled(true);
-                            btnLocalFile.setEnabled(true);
-                        },
-                        e -> toast(e.getLocalizedMessage()));
     }
 
     //region 动态权限申请

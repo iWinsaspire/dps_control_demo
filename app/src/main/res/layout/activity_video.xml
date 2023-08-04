@@ -8,6 +8,7 @@ android:orientation="vertical"
 android:padding="16dp"
 tools:context=".VideoActivity">
 
+
     <ImageView
         android:id="@+id/imageView"
         android:layout_width="match_parent"
@@ -21,6 +22,7 @@ tools:context=".VideoActivity">
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="投屏按钮(显示设备列表）" />
+
 
 
     <LinearLayout
@@ -38,5 +40,34 @@ tools:context=".VideoActivity">
             android:id="@+id/lv_device_list"
             android:layout_height="match_parent"
             android:layout_width="match_parent" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btn_ctrl_play"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="播放" />
+
+        <Button
+            android:id="@+id/btn_ctrl_pause"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="暂停" />
+
+
+        <Button
+            android:id="@+id/btn_ctrl_stop"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="结束" />
+
     </LinearLayout>
 </LinearLayout>
